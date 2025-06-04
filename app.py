@@ -32,12 +32,13 @@ st.sidebar.markdown(f"**Kc (Stage-based):** {kc}")
 # Emitter configuration
 emitter_rate = st.sidebar.number_input("Emitter flow rate (L/hr)", value=2.0)
 emitters_per_plant = st.sidebar.number_input("Emitters per plant", value=1)
-plant_density = 10  # 10 plants/m²
+plant_density = 10  # plants per m²
 
-# GPS coordinates (Utsunomiya Univ.)
-lat = 36.547869
-lon = 139.911161
+# GPS coordinates (Utsunomiya)
+lat, lon = 36.547869, 139.911161
 et0, forecast_rain = fetch_weather_data(lat, lon)
+et0 = et0 if et0 is not None else 4.5
+forecast_rain = forecast_rain if forecast_rain is not None else 1.5
 
 st.sidebar.markdown(f"**ET₀ (from weather):** {et0} mm")
 st.sidebar.markdown(f"**Rain forecast:** {forecast_rain} mm")
@@ -51,20 +52,21 @@ if uploaded_file:
     moisture_threshold = 0.70 * fc
 
     def decision(row):
-        ndvi = row.get("NDVI", 1)
-        sm = row.get("soil_moisture", 100)
+        ndvi = row.get("NDVI", 1.0)
+        sm = row.get("soil_moisture", 100.0)
 
-        irrigate = False
-        if (
+        irrigate = (
             ndvi < 0.65 and
             sm < moisture_threshold and
             et0 > 3.5 and
             forecast_rain < 2
-        ):
-            irrigate = True
+        )
         etc = et0 * kc if irrigate else 0
         irrigation_mm = max(0, etc - forecast_rain) if irrigate else 0
-        irrigation_time_min = (irrigation_mm * 60) / (plant_density * emitter_rate * emitters_per_plant) if irrigation_mm > 0 else 0
+        irrigation_time_min = (
+            (irrigation_mm * 60) / (plant_density * emitter_rate * emitters_per_plant)
+            if irrigation_mm > 0 else 0
+        )
         return pd.Series([irrigate, etc, irrigation_mm, irrigation_time_min])
 
     df[["irrigate", "ETc", "irrigation_mm", "irrigation_minutes"]] = df.apply(decision, axis=1)
